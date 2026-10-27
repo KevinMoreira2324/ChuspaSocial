@@ -421,6 +421,7 @@ class listing_service_test extends advanced_testcase {
      */
     public function test_mark_sold_como_dueno(): void {
         global $DB;
+
         $generator = $this->getDataGenerator();
         $owner = $generator->create_user();
         $plugingenerator = $generator->get_plugin_generator('local_chuspasocial');
