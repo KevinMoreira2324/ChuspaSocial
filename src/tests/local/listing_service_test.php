@@ -122,6 +122,7 @@ class listing_service_test extends advanced_testcase {
         $this->assertFalse($DB->record_exists('local_chuspasocial_listing', ['id' => $listing->id]));
         $this->assertFalse($DB->record_exists('local_chuspasocial_lstcourse', ['id' => $linkid]));
     }
+
     /**
      * Crea un anuncio de libro de prueba.
      *
@@ -200,8 +201,8 @@ class listing_service_test extends advanced_testcase {
         $this->assertCount(1, $result);
         $this->assertEquals($id, $result[0]->id);
     }
-    
-     /**
+
+    /**
      * Test case: Vincular cursos correctamente a un listado.
      *
      * @covers \local_chuspasocial\local\listing_service::set_courses
@@ -345,6 +346,7 @@ class listing_service_test extends advanced_testcase {
         $this->assertCount(1, $result);
         $this->assertEquals($listingid, $result[0]->id);
     }
+
     /**
      * El autor puede actualizar su anuncio.
      *
@@ -412,5 +414,50 @@ class listing_service_test extends advanced_testcase {
         );
     }
 
-}
+    /**
+     * El dueño del anuncio lo marca como vendido.
+     *
+     * @covers \local_chuspasocial\local\listing_service::mark_sold
+     */
+    public function test_mark_sold_como_dueno(): void {
+        global $DB;
+        $generator = $this->getDataGenerator();
+        $owner = $generator->create_user();
+        $plugingenerator = $generator->get_plugin_generator('local_chuspasocial');
+        $listing = $plugingenerator->create_listing(['userid' => $owner->id]);
 
+        $this->setUser($owner);
+
+        listing_service::mark_sold($listing->id);
+
+        $status = $DB->get_field('local_chuspasocial_listing', 'status', ['id' => $listing->id]);
+        $this->assertEquals('sold', $status);
+    }
+
+    /**
+     * Otro usuario no puede marcar como vendido un anuncio ajeno.
+     *
+     * @covers \local_chuspasocial\local\listing_service::mark_sold
+     */
+    public function test_mark_sold_otro_usuario(): void {
+        global $DB;
+
+        $generator = $this->getDataGenerator();
+        $owner = $generator->create_user();
+        $other = $generator->create_user();
+        $plugingenerator = $generator->get_plugin_generator('local_chuspasocial');
+        $listing = $plugingenerator->create_listing(['userid' => $owner->id]);
+
+        $this->setUser($other);
+
+        try {
+            listing_service::mark_sold($listing->id);
+            $this->fail('Se esperaba una excepción al marcar un anuncio ajeno.');
+        } catch (\moodle_exception $e) {
+            // Excepción esperada.
+        }
+
+        $status = $DB->get_field('local_chuspasocial_listing', 'status', ['id' => $listing->id]);
+        $this->assertNotEquals('sold', $status);
+    }
+}
