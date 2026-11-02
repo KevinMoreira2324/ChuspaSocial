@@ -72,6 +72,59 @@ class report_item extends external_api {
         self::validate_context($context);
         require_capability('local/chuspasocial:report', $context);
 
+        global $DB, $USER;
+
+        if (!in_array($params['itemtype'], ['post', 'comment', 'listing'], true)) {
+            throw new \invalid_parameter_exception('Invalid report item type.');
+        }
+
+        if ((int) $params['itemid'] <= 0) {
+            throw new \invalid_parameter_exception('Invalid report item ID.');
+        }
+
+        // Comments inherit the visibility of their parent post.
+        if ($params['itemtype'] === 'comment') {
+            $comment = $DB->get_record('local_chuspasocial_comment', ['id' => $params['itemid']]);
+            if (!$comment) {
+                throw new \invalid_parameter_exception('Reported item does not exist.');
+            }
+            $postid = (int) $comment->postid;
+        } else if ($params['itemtype'] === 'post') {
+            $postid = (int) $params['itemid'];
+        }
+
+        if (isset($postid)) {
+            $post = $DB->get_record('local_chuspasocial_post', ['id' => $postid]);
+            if (!$post) {
+                throw new \invalid_parameter_exception('Reported item does not exist.');
+            }
+            $persistent = new \local_chuspasocial\local\persistent\post($postid);
+            if (!\local_chuspasocial\local\post_service::can_view($persistent, (int) $USER->id)) {
+                throw new \moodle_exception('nopermissions', 'error', '', 'report this item');
+            }
+        } else {
+            // Listings must exist and be linked to an accessible course.
+            if (!$DB->record_exists('local_chuspasocial_listing', ['id' => $params['itemid']])) {
+                throw new \invalid_parameter_exception('Reported item does not exist.');
+            }
+
+            $courses = $DB->get_records('local_chuspasocial_lstcourse', ['listingid' => $params['itemid']]);
+            $canview = false;
+            foreach ($courses as $course) {
+                $coursecontext = \context_course::instance((int) $course->courseid, IGNORE_MISSING);
+                if ($coursecontext && (
+                    is_enrolled($coursecontext, $USER->id, '', true)
+                    || has_capability('moodle/course:view', $coursecontext)
+                )) {
+                    $canview = true;
+                    break;
+                }
+            }
+            if (!$canview) {
+                throw new \moodle_exception('nopermissions', 'error', '', 'report this listing');
+            }
+        }
+
         report_service::create_report(
             $params['itemtype'],
             (int) $params['itemid'],
