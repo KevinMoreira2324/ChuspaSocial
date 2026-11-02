@@ -412,5 +412,29 @@ class listing_service_test extends advanced_testcase {
         );
     }
 
+    /**
+     * Un precio con decimales se formatea con la moneda y dos decimales.
+     *
+     * @covers \local_chuspasocial\local\listing_service::format_price
+     */
+    public function test_format_price_con_decimales(): void {
+        set_config('currency', 'BOB', 'local_chuspasocial');
+
+        $this->assertSame('BOB ' . format_float(10.5, 2), listing_service::format_price(10.5));
+        $this->assertSame('BOB ' . format_float(99.999, 2), listing_service::format_price(99.999));
+    }
+
+    /**
+     * Un precio de cero devuelve la etiqueta localizada de gratis.
+     *
+     * @covers \local_chuspasocial\local\listing_service::format_price
+     */
+    public function test_format_price_con_cero(): void {
+        $gratis = get_string('free', 'local_chuspasocial');
+
+        $this->assertSame($gratis, listing_service::format_price(0.0));
+        $this->assertSame($gratis, listing_service::format_price(0));
+    }
+    
 }
 
