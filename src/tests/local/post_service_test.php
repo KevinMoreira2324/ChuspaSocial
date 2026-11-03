@@ -341,4 +341,87 @@ class post_service_test extends advanced_testcase {
         $post = $DB->get_record('local_chuspasocial_post', ['id' => $postid]);
         $this->assertGreaterThan($oldtime, $post->timemodified);
     }
+
+    /**
+     * Devuelve los ids (int) de los posts de un feed.
+     *
+     * @param array $feed Resultado de get_general_feed().
+     * @return int[] Ids de los posts.
+     */
+    private function get_feed_ids(array $feed): array {
+        return array_map('intval', array_column($feed, 'id'));
+    }
+
+    /**
+     * El feed incluye las publicaciones generales (courseid 0).
+     *
+     * @covers \local_chuspasocial\local\post_service::get_general_feed
+     */
+    public function test_get_general_feed_incluye_publicaciones_generales(): void {
+        $user = $this->getDataGenerator()->create_user();
+        $postid = $this->create_test_post($user->id, 0);
+
+        $this->setUser($user);
+        $feed = post_service::get_general_feed(0, 10);
+
+        $this->assertContains($postid, $this->get_feed_ids($feed));
+    }
+
+    /**
+     * El feed incluye las publicaciones de las materias donde el usuario esta inscrito.
+     *
+     * @covers \local_chuspasocial\local\post_service::get_general_feed
+     */
+    public function test_get_general_feed_incluye_publicaciones_de_materias_propias(): void {
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $user = $generator->create_user();
+        $generator->enrol_user($user->id, $course->id, 'student');
+        $postid = $this->create_test_post($user->id, $course->id);
+
+        $this->setUser($user);
+        $feed = post_service::get_general_feed(0, 10);
+
+        $this->assertContains($postid, $this->get_feed_ids($feed));
+    }
+
+    /**
+     * El feed no incluye publicaciones de materias donde el usuario no esta inscrito.
+     *
+     * @covers \local_chuspasocial\local\post_service::get_general_feed
+     */
+    public function test_get_general_feed_excluye_publicaciones_de_materias_ajenas(): void {
+        $generator = $this->getDataGenerator();
+        $owncourse = $generator->create_course();
+        $othercourse = $generator->create_course();
+        $user = $generator->create_user();
+        $author = $generator->create_user();
+        $generator->enrol_user($user->id, $owncourse->id, 'student');
+        $generator->enrol_user($author->id, $othercourse->id, 'student');
+        $ownpostid = $this->create_test_post($user->id, $owncourse->id);
+        $foreignpostid = $this->create_test_post($author->id, $othercourse->id);
+
+        $this->setUser($user);
+        $ids = $this->get_feed_ids(post_service::get_general_feed(0, 10));
+
+        $this->assertContains($ownpostid, $ids);
+        $this->assertNotContains($foreignpostid, $ids);
+    }
+
+    /**
+     * El feed ordena las mas recientes primero y respeta la paginacion.
+     *
+     * @covers \local_chuspasocial\local\post_service::get_general_feed
+     */
+    public function test_get_general_feed_ordena_y_pagina(): void {
+        $user = $this->getDataGenerator()->create_user();
+        $first = $this->create_test_post($user->id, 0);
+        $second = $this->create_test_post($user->id, 0);
+        $third = $this->create_test_post($user->id, 0);
+
+        $this->setUser($user);
+
+        $this->assertSame([$third, $second], $this->get_feed_ids(post_service::get_general_feed(0, 2)));
+        $this->assertSame([$first], $this->get_feed_ids(post_service::get_general_feed(1, 2)));
+    }
 }
