@@ -142,3 +142,121 @@ Luego, ejecuta las pruebas indicando la carpeta específica del plugin:
 ```bash
 vendor/bin/phpunit local/chuspasocial/tests/
 ```
+
+## Pipeline de integración continua
+
+Los Pull Requests dirigidos a `dev` o `main` activan verificaciones automáticas mediante GitHub Actions.
+
+### 1. Validaciones del Pull Request
+
+El workflow `.github/workflows/ci.yml` comprueba:
+
+- Que el PR tenga una descripción.
+- Que incluya una referencia a un issue mediante `Closes #N`, `Fixes #N` o `Resolves #N`.
+- Que el título utilice un prefijo válido, como `docs:`, `fix:` o `test:`.
+- Que el nombre de la rama siga el formato `tipo/descripcion-corta`.
+- Que los PR de trabajo apunten a `dev`.
+- Que se modifique un solo archivo, salvo la excepción definida para archivos JavaScript AMD.
+
+### 2. Verificación de sintaxis y estilo PHP
+
+El workflow `moodle-ci.yml` comprueba la sintaxis de PHP mediante:
+
+```bash
+moodle-plugin-ci phplint ./plugin/src
+```
+
+El workflow `ci.yml` ejecuta PHPCS:
+
+```bash
+moodle-plugin-ci phpcs --max-warnings 0
+```
+
+PHPCS comprueba el cumplimiento del estándar de codificación de Moodle.
+
+La opción `--max-warnings 0` hace que las advertencias también puedan provocar el fallo de la verificación.
+
+### 3. Ejecución de PHPUnit
+
+El workflow `ci.yml` incluye:
+
+```bash
+moodle-plugin-ci phpunit --fail-on-warning
+```
+
+PHPUnit ejecuta las pruebas automatizadas del proyecto.
+
+La opción `--fail-on-warning` permite que las advertencias de PHPUnit provoquen un resultado fallido.
+
+### 4. Preparación del entorno Moodle
+
+El workflow `moodle-ci.yml` utiliza Ubuntu y configura:
+
+- PHP 8.1 mediante `shivammathur/setup-php@v2`.
+- Moodle 4.5 mediante `MOODLE_405_STABLE`.
+- `moodle-plugin-ci` versión 4.
+- Extensiones PHP necesarias para Moodle.
+- PostgreSQL 15 y MariaDB 10.11 mediante servicios Docker.
+
+Los servicios de base de datos utilizan comprobaciones de disponibilidad (*health checks*) antes de su utilización.
+
+La instalación se realiza mediante:
+
+```bash
+moodle-plugin-ci install \
+  --plugin ./plugin/src \
+  --db-type=${DB_TYPE} \
+  --db-host=127.0.0.1 \
+  --db-user=${DB_USER} \
+  --db-pass=${DB_PASS} \
+  --db-name=moodle
+```
+
+Las variables `DB_TYPE`, `DB_USER` y `DB_PASS` representan los valores de la matriz del workflow. En el archivo YAML se utilizan expresiones de GitHub Actions para proporcionar estos parámetros.
+
+La matriz ejecuta las verificaciones con PostgreSQL y MariaDB.
+
+### 5. Otras verificaciones del plugin
+
+El workflow `moodle-ci.yml` ejecuta:
+
+| Comando | Propósito |
+|---|---|
+| `phplint` | Verificar sintaxis PHP |
+| `mustache` | Validar plantillas Mustache |
+| `phpdoc` | Revisar documentación PHP |
+| `validate` | Validar estructura del plugin |
+| `savepoints` | Verificar puntos de actualización |
+| `grunt` | Comprobar tareas de JavaScript |
+| `behat` | Ejecutar pruebas funcionales con Chrome |
+
+Estas verificaciones se ejecutan para las configuraciones de base de datos definidas en la matriz.
+
+## Interpretación de errores de CI
+
+Cuando una verificación falla:
+
+1. Abrir el Pull Request en GitHub.
+2. Entrar en la pestaña **Checks**.
+3. Seleccionar el workflow que presenta el error.
+4. Abrir el job fallido y revisar sus pasos.
+5. Identificar el mensaje y el archivo afectado.
+6. Corregir el problema y actualizar el Pull Request.
+
+### Errores frecuentes
+
+| Error | Posible causa | Acción recomendada |
+|---|---|---|
+| `phplint` | Error de sintaxis PHP | Revisar el archivo y la línea indicada |
+| `phpcs` | Incumplimiento del estándar Moodle | Corregir el estilo señalado |
+| `phpunit` | Prueba fallida o advertencia | Revisar el resultado de PHPUnit |
+| `mustache` | Problema en una plantilla | Revisar la sintaxis Mustache |
+| `phpdoc` | Documentación PHP incorrecta | Corregir los comentarios indicados |
+| `validate` | Estructura o metadatos inválidos | Revisar la validación del plugin |
+| `grunt` | Problemas en tareas JavaScript | Consultar los mensajes del job |
+| `behat` | Fallo en una prueba funcional | Revisar el escenario y su entorno |
+| Instalación Moodle | Dependencias o base de datos no disponibles | Revisar los logs de instalación y los servicios Docker |
+
+Un fallo de CI no siempre significa que el código PHP tenga errores. También puede deberse a dependencias, configuración del entorno o servicios externos.
+
+Antes de realizar cambios, se debe identificar la causa concreta en los registros de GitHub Actions.
