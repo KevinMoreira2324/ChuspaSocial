@@ -33,5 +33,44 @@ defined('MOODLE_INTERNAL') || die();
  * @copyright  2026 sis-inf
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
 class local_chuspasocial_generator extends component_generator_base {
+    /**
+     * Creates a reaction for testing.
+     *
+     * @param array $record Reaction data.
+     * @return \local_chuspasocial\local\persistent\reaction
+     */
+    public function create_reaction(array $record = []): \local_chuspasocial\local\persistent\reaction {
+        global $DB;
+
+        if (empty($record['userid'])) {
+            $user = $this->datagenerator->create_user();
+            $record['userid'] = $user->id;
+        }
+
+        if (empty($record['postid'])) {
+            $postid = $DB->insert_record('local_chuspasocial_post', (object) [
+                'userid' => $record['userid'],
+                'courseid' => 0,
+                'type' => 'post',
+                'content' => 'Publicacion de prueba',
+                'contentformat' => FORMAT_HTML,
+                'hidden' => 0,
+                'timecreated' => time(),
+                'timemodified' => time(),
+            ]);
+
+            $record['postid'] = $postid;
+        }
+
+        $record['type'] = $record['type'] ?? \local_chuspasocial\local\persistent\reaction::TYPE_LIKE;
+        $record['timecreated'] = $record['timecreated'] ?? time();
+
+        $reaction = new \local_chuspasocial\local\persistent\reaction(0, (object) $record);
+        $reaction->create();
+
+        return $reaction;
+    }
 }
+
