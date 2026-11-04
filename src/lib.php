@@ -80,6 +80,23 @@ function local_chuspasocial_pluginfile(
         return false;
     }
 
+    if ($filearea === 'listingphoto') {
+        require_login();
+        require_capability('local/chuspasocial:viewmarketplace', $context);
+
+        $itemid = (int) array_shift($args);
+        $filename = array_pop($args);
+        $filepath = $args ? '/' . implode('/', $args) . '/' : '/';
+
+        $fs = get_file_storage();
+        $file = $fs->get_file($context->id, 'local_chuspasocial', $filearea, $itemid, $filepath, $filename);
+        if (!$file || $file->is_directory()) {
+            return false;
+        }
+
+        send_stored_file($file, 0, 0, $forcedownload, $options);
+    }
+
     if ($filearea !== 'postimage') {
         return false;
     }

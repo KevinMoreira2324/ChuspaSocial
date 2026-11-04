@@ -17,6 +17,7 @@
 namespace local_chuspasocial\local;
 
 use advanced_testcase;
+use local_chuspasocial\local\persistent\post;
 
 /**
  * Pruebas unitarias para el metodo can_post_announcement.
@@ -423,5 +424,168 @@ class post_service_test extends advanced_testcase {
 
         $this->assertSame([$third, $second], $this->get_feed_ids(post_service::get_general_feed(0, 2)));
         $this->assertSame([$first], $this->get_feed_ids(post_service::get_general_feed(1, 2)));
+     * An enrolled student can view a visible course post.
+     *
+     * @covers \local_chuspasocial\local\post_service::can_view
+     */
+    public function test_can_view_enrolled_student(): void {
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $author = $generator->create_user();
+        $viewer = $generator->create_user();
+        $generator->enrol_user($viewer->id, $course->id, 'student');
+        $post = new post($this->create_test_post($author->id, $course->id));
+
+        $this->setUser($viewer);
+
+        $this->assertTrue(post_service::can_view($post, $viewer->id));
+    }
+
+    /**
+     * A user without enrolment or course access cannot view a course post.
+     *
+     * @covers \local_chuspasocial\local\post_service::can_view
+     */
+    public function test_can_view_non_enrolled_user_is_denied(): void {
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $author = $generator->create_user();
+        $viewer = $generator->create_user();
+        $post = new post($this->create_test_post($author->id, $course->id));
+
+        $this->setUser($viewer);
+
+        $this->assertFalse(post_service::can_view($post, $viewer->id));
+    }
+
+    /**
+     * Explicit course access permits viewing without enrolment.
+     *
+     * @covers \local_chuspasocial\local\post_service::can_view
+     */
+    public function test_can_view_course_access_without_enrolment(): void {
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $author = $generator->create_user();
+        $viewer = $generator->create_user();
+        $context = \context_course::instance($course->id);
+        $roleid = $generator->create_role();
+        assign_capability('moodle/course:view', CAP_ALLOW, $roleid, $context->id);
+        role_assign($roleid, $viewer->id, $context->id);
+        $post = new post($this->create_test_post($author->id, $course->id));
+
+        $this->setUser($viewer);
+
+        $this->assertTrue(post_service::can_view($post, $viewer->id));
+    }
+
+    /**
+     * A registered user can view a general post with the view capability.
+     *
+     * @covers \local_chuspasocial\local\post_service::can_view
+     */
+    public function test_can_view_general_post(): void {
+        $generator = $this->getDataGenerator();
+        $author = $generator->create_user();
+        $viewer = $generator->create_user();
+        $post = new post($this->create_test_post($author->id, 0));
+
+        $this->setUser($viewer);
+
+        $this->assertTrue(post_service::can_view($post, $viewer->id));
+    }
+
+    /**
+     * A prohibited view capability prevents access to a general post.
+     *
+     * @covers \local_chuspasocial\local\post_service::can_view
+     */
+    public function test_can_view_general_post_without_capability_is_denied(): void {
+        $generator = $this->getDataGenerator();
+        $author = $generator->create_user();
+        $viewer = $generator->create_user();
+        $context = \context_system::instance();
+        $roleid = $generator->create_role();
+        assign_capability('local/chuspasocial:view', CAP_PROHIBIT, $roleid, $context->id);
+        role_assign($roleid, $viewer->id, $context->id);
+        $post = new post($this->create_test_post($author->id, 0));
+
+        $this->setUser($viewer);
+
+        $this->assertFalse(post_service::can_view($post, $viewer->id));
+    }
+
+    /**
+     * Enrolment alone does not permit viewing a hidden post.
+     *
+     * @covers \local_chuspasocial\local\post_service::can_view
+     */
+    public function test_can_view_hidden_post_is_denied_to_other_student(): void {
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $author = $generator->create_user();
+        $viewer = $generator->create_user();
+        $generator->enrol_user($viewer->id, $course->id, 'student');
+        $post = new post($this->create_test_post($author->id, $course->id));
+        $post->set('hidden', true);
+
+        $this->setUser($viewer);
+
+        $this->assertFalse(post_service::can_view($post, $viewer->id));
+    }
+
+    /**
+     * The enrolled author can view their own hidden post.
+     *
+     * @covers \local_chuspasocial\local\post_service::can_view
+     */
+    public function test_can_view_hidden_post_by_author(): void {
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $author = $generator->create_user();
+        $generator->enrol_user($author->id, $course->id, 'student');
+        $post = new post($this->create_test_post($author->id, $course->id));
+        $post->set('hidden', true);
+
+        $this->setUser($author);
+
+        $this->assertTrue(post_service::can_view($post, $author->id));
+    }
+
+    /**
+     * An enrolled moderator can view another user's hidden post.
+     *
+     * @covers \local_chuspasocial\local\post_service::can_view
+     */
+    public function test_can_view_hidden_post_by_moderator(): void {
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $author = $generator->create_user();
+        $moderator = $this->create_moderator();
+        $generator->enrol_user($moderator->id, $course->id, 'student');
+        $post = new post($this->create_test_post($author->id, $course->id));
+        $post->set('hidden', true);
+
+        $this->setUser($moderator);
+
+        $this->assertTrue(post_service::can_view($post, $moderator->id));
+    }
+
+    /**
+     * A post referencing a deleted course cannot be viewed.
+     *
+     * @covers \local_chuspasocial\local\post_service::can_view
+     */
+    public function test_can_view_deleted_course_is_denied(): void {
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course();
+        $author = $generator->create_user();
+        $viewer = $generator->create_user();
+        $post = new post($this->create_test_post($author->id, $course->id));
+        delete_course($course, false);
+
+        $this->setUser($viewer);
+
+        $this->assertFalse(post_service::can_view($post, $viewer->id));
     }
 }

@@ -77,7 +77,19 @@ class toggle_follow extends external_api {
         $context = context_system::instance();
         self::validate_context($context);
         require_capability('local/chuspasocial:follow', $context);
+    if ($component === 'user') {
+    // 1. Rechazar el auto-seguimiento
+        if ((int)$USER->id === (int)$itemid) {
+            throw new invalid_parameter_exception('Cannot follow yourself.');
+    }
 
+    // 2. Validar que el usuario objetivo exista y esté activo (no borrado ni suspendido)
+    $DB->get_record('user', [
+        'id' => $itemid,
+        'deleted' => 0,
+        'suspended' => 0
+    ], 'id', MUST_EXIST);
+}
         $following = $DB->record_exists('local_chuspasocial_follow', [
             'userid' => $USER->id,
             'itemtype' => $component,
