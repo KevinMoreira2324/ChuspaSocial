@@ -1,5 +1,123 @@
 # Entorno de desarrollo
 
+## Windows con Laragon
+
+Esta guía describe cómo preparar un entorno de desarrollo de ChuspaSocial en Windows con Laragon y Moodle 4.5 LTS. El plugin se mantiene en `src/` y se enlaza con Moodle para que los cambios se reflejen sin copiar los archivos manualmente.
+
+**Estado de validación:** esta guía está pendiente de probarse en una instalación real de Laragon. Las rutas indicadas son las habituales y deben adaptarse si Laragon se instaló en otra ubicación.
+
+### Requisitos
+
+- Windows 10 u 11.
+- [Laragon](https://laragon.org/download/), con una versión de PHP compatible con Moodle 4.5.
+- MariaDB 10.6.7 o superior, o MySQL 8.0 o superior.
+- [Git para Windows](https://git-scm.com/download/win).
+- Este repositorio clonado en el equipo.
+
+En los ejemplos se supone que Laragon está instalado en `C:\laragon` y que Moodle estará en `C:\laragon\www\moodle`. Si usas otra ubicación, adapta las rutas de los comandos.
+
+### 1. Instalar y configurar Laragon
+
+1. Descarga Laragon desde su sitio oficial e instálalo.
+2. Abre Laragon y utiliza su menú para iniciar los servicios web y de base de datos.
+3. Comprueba qué versión de PHP está seleccionada y verifica que sea compatible con Moodle 4.5.
+4. Comprueba que las extensiones de PHP requeridas por Moodle estén habilitadas, incluidas `mysqli`, `curl`, `gd`, `intl`, `mbstring`, `soap`, `xml`, `zip` y `sodium`.
+5. En el archivo `php.ini` de la versión activa, establece `max_input_vars = 5000`. Reinicia los servicios después de guardar los cambios.
+
+Comprueba PHP desde PowerShell:
+
+```powershell
+C:\laragon\bin\php\php-8.3\php.exe --version
+```
+
+La ruta anterior es un ejemplo: sustituye `php-8.3` por la carpeta de la versión que tengas instalada. También puedes ejecutar `php --version` si PHP está disponible en el `PATH`.
+
+### 2. Crear la base de datos
+
+1. Inicia los servicios desde Laragon.
+2. Abre la herramienta de administración de bases de datos que incluya tu instalación.
+3. Crea una base de datos llamada `moodle` con codificación `utf8mb4` y una intercalación compatible, como `utf8mb4_unicode_ci`.
+4. Anota el usuario, la contraseña y el puerto configurados.
+
+### 3. Descargar Moodle 4.5
+
+Abre PowerShell y ejecuta:
+
+```powershell
+Set-Location C:\laragon\www
+git clone --branch MOODLE_405_STABLE --depth 1 https://github.com/moodle/moodle.git moodle
+New-Item -ItemType Directory -Force C:\laragon\moodledata
+```
+
+La carpeta `moodledata` debe estar fuera del directorio público `www`.
+
+### 4. Enlazar el plugin ChuspaSocial
+
+Comprueba que el repositorio contiene el archivo `src\version.php`. En estos ejemplos, el repositorio está en `C:\Users\CAMILA\ChuspaSocial`.
+
+```powershell
+Test-Path C:\Users\CAMILA\ChuspaSocial\src\version.php
+```
+
+El resultado debe ser `True`. A continuación, crea el enlace:
+
+```powershell
+New-Item -ItemType Junction `
+  -Path C:\laragon\www\moodle\local\chuspasocial `
+  -Target C:\Users\CAMILA\ChuspaSocial\src
+```
+
+Comprueba el enlace:
+
+```powershell
+Test-Path C:\laragon\www\moodle\local\chuspasocial\version.php
+```
+
+Debe devolver `True`. Si la carpeta de destino ya existe, revisa su contenido antes de intentar crear el enlace.
+
+### 5. Instalar Moodle
+
+Identifica la ruta real del archivo `php.exe` de Laragon y sustituye `RUTA_PHP` por la ruta completa de la carpeta que lo contiene. Sustituye también las credenciales por las de tu base de datos.
+
+```powershell
+Set-Location C:\laragon\www\moodle
+
+& "RUTA_PHP\php.exe" admin\cli\install.php `
+  --wwwroot=http://localhost/moodle `
+  --dataroot=C:\laragon\moodledata `
+  --dbtype=mariadb `
+  --dbhost=127.0.0.1 `
+  --dbname=moodle `
+  --dbuser=root `
+  --dbpass="CONTRASEÑA_BASE_DATOS" `
+  --fullname="ChuspaSocial Dev" `
+  --shortname=chuspa `
+  --adminuser=admin `
+  --adminpass="CONTRASEÑA_ADMIN" `
+  --adminemail=admin@example.com `
+  --agree-license `
+  --non-interactive
+```
+
+El marcador `RUTA_PHP` debe sustituirse por la ruta real; no ejecutes el comando literalmente con ese texto. La contraseña de administrador debe cumplir los requisitos de seguridad de Moodle.
+
+### 6. Verificar la instalación
+
+1. Abre `http://localhost/moodle` en el navegador.
+2. Inicia sesión con la cuenta de administrador creada durante la instalación.
+3. Entra en **Administración del sitio > Extensiones > Resumen de extensiones**.
+4. Comprueba que `local_chuspasocial` aparece instalado.
+5. Realiza un cambio de prueba en un archivo seguro del plugin y comprueba que se refleja en la carpeta enlazada. Después, revierte ese cambio.
+
+### Problemas frecuentes
+
+- **PHP no se reconoce:** utiliza la ruta completa de `php.exe` de Laragon.
+- **Falta una extensión de PHP:** habilítala en el `php.ini` de la versión activa y reinicia los servicios.
+- **Error de conexión con la base de datos:** comprueba el servicio, el puerto y las credenciales.
+- **El plugin no aparece:** verifica que `local\chuspasocial\version.php` existe en Moodle y que el enlace apunta a `src/`.
+
+**Validación pendiente:** realiza una instalación completa en Laragon antes de afirmar que la guía ha sido probada. Incluye una captura del resultado en el Pull Request.
+
 ## Windows con XAMPP
 
 Esta guía deja ChuspaSocial funcionando en Windows con XAMPP y Moodle 4.5 LTS,
