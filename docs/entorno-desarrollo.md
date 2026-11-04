@@ -292,6 +292,126 @@ Después vuelve a ejecutar el paso 5.
 Si solo quieres probar el plugin sin desarrollar, instálalo desde un zip.
 Los pasos están en [`src/README.md`](../src/README.md).
 
+## moodle-docker
+
+Esta guía deja ChuspaSocial funcionando con Moodle 4.5 LTS dentro de
+contenedores Docker, sin instalar PHP ni una base de datos en tu equipo.
+Los cambios de `src/` se reflejan al instante en Moodle.
+Fue probada en Windows con Docker Desktop (Docker 29.9.2, Compose v5.6.1) y Git Bash.
+
+### Requisitos de moodle-docker
+
+- Windows 10 u 11 con WSL2.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) abierto y con el motor en ejecución (abajo a la izquierda debe decir `Engine running`).
+- [Git para Windows](https://git-scm.com/download/win). Los comandos se ejecutan en **Git Bash**.
+- Tu fork de este repositorio clonado en tu equipo (en adelante, `<RUTA_REPO>`).
+
+Comprueba que Docker funciona:
+
+```bash
+docker --version
+docker run hello-world
+```
+
+Debe imprimir `Hello from Docker!`.
+
+### 1. Clonar moodle-docker y Moodle 4.5
+
+Clona los dos repositorios en la misma carpeta donde está tu fork, no dentro de él.
+
+```bash
+cd <CARPETA_DE_TRABAJO>
+git -c core.autocrlf=false clone https://github.com/moodlehq/moodle-docker.git
+git -c core.autocrlf=false clone --branch MOODLE_405_STABLE --depth 1 https://github.com/moodle/moodle.git
+```
+
+Se usa `core.autocrlf=false` porque los scripts de `moodle-docker/bin/` son de Bash y fallan si Git les cambia los saltos de línea a formato Windows.
+
+Estructura resultante:
+
+```text
+<CARPETA_DE_TRABAJO>/
+├── ChuspaSocial/    <- tu fork (el plugin está en src/)
+├── moodle-docker/
+└── moodle/          <- Moodle 4.5
+```
+
+### 2. Montar `src/` en `local/chuspasocial`
+
+Crea el archivo `local.yml` dentro de la carpeta `moodle-docker`. `moodle-docker` lo carga solo y monta el plugin dentro del contenedor.
+
+```bash
+cd moodle-docker
+code local.yml
+```
+
+Contenido del archivo (usa barras `/` y la ruta completa de tu fork):
+
+```yaml
+services:
+  webserver:
+    volumes:
+      - "<RUTA_REPO>/src:/var/www/html/local/chuspasocial"
+```
+
+Por ejemplo: `"C:/Users/TU-USUARIO/Proyectos/ChuspaSocial/src:/var/www/html/local/chuspasocial"`.
+
+### 3. Configurar las variables
+
+Estas variables solo duran en la ventana de Git Bash donde las escribes. Si la cierras, vuelve a ejecutarlas.
+
+```bash
+cd <CARPETA_DE_TRABAJO>/moodle-docker
+export MOODLE_DOCKER_WWWROOT=<RUTA_MOODLE>
+export MOODLE_DOCKER_DB=pgsql
+cp config.docker-template.php "$MOODLE_DOCKER_WWWROOT/config.php"
+```
+
+`<RUTA_MOODLE>` es la ruta completa de la carpeta `moodle`, con barras `/`.
+
+### 4. Levantar los contenedores
+
+```bash
+bin/moodle-docker-compose up -d
+bin/moodle-docker-wait-for-db
+```
+
+La primera vez descarga varias imágenes y tarda unos minutos. Puedes ver los contenedores en Docker Desktop, en **Containers**.
+
+### 5. Instalar Moodle
+
+```bash
+bin/moodle-docker-compose exec webserver php admin/cli/install_database.php --agree-license --fullname="ChuspaSocial Dev" --shortname="chuspa" --summary="Moodle de desarrollo" --adminpass="<CONTRASEÑA>" --adminemail="admin@example.com"
+```
+
+La contraseña debe cumplir la política de Moodle: mínimo 8 caracteres, con mayúscula, minúscula, número y un símbolo.
+
+### 6. Verificar en el navegador
+
+1. Abre `http://localhost:8000` e inicia sesión con el usuario `admin`.
+2. Abre `http://localhost:8000/local/chuspasocial/index.php`. Debe mostrar el título «ChuspaSocial».
+3. Ve a **Administración del sitio > Extensiones > Resumen de extensiones** y busca `local_chuspasocial`. Debe aparecer instalado.
+
+### 7. Uso diario
+
+```bash
+bin/moodle-docker-compose stop
+bin/moodle-docker-compose start
+```
+
+`stop` apaga los contenedores y `start` los vuelve a encender, sin perder datos. Para borrar todo, incluida la base de datos, usa `bin/moodle-docker-compose down -v`.
+
+### Problemas frecuentes con moodle-docker
+
+| Síntoma | Causa probable | Solución |
+| --- | --- | --- |
+| `failed to connect to the docker API` | Docker Desktop no está abierto | Abrirlo y esperar a que diga `Engine running` |
+| Los scripts de `bin/` fallan con errores de `\r` | Se clonó con saltos de línea de Windows | Borrar `moodle-docker` y clonarlo con `core.autocrlf=false` |
+| `http://localhost:8000` no carga | Los contenedores no están arriba o la base de datos no terminó de iniciar | Ejecutar `docker ps` y repetir `bin/moodle-docker-wait-for-db` |
+| El puerto 8000 está ocupado | Otro programa lo usa | `export MOODLE_DOCKER_WEB_PORT=8080` antes de `up -d` y abrir `http://localhost:8080` |
+| Los comandos dicen que falta `MOODLE_DOCKER_WWWROOT` | Se cerró la ventana de Git Bash | Volver a ejecutar los `export` del paso 3 |
+| El plugin no aparece en Extensiones | La ruta de `local.yml` no es la de tu fork | Corregir la ruta y ejecutar `bin/moodle-docker-compose up -d` otra vez |
+
 ## Problemas comunes
 
 ### Error `max_input_vars`
