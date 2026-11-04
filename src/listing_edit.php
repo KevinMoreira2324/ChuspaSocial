@@ -92,7 +92,7 @@ if ($data = $form->get_data()) {
     }
 
     listing_service::set_courses($id, $data->course ?? []);
-    file_save_draft_area_files($data->photos, $context->id, 'local_chuspasocial', 'photos', $id, $fileoptions);
+    file_save_draft_area_files($data->photos, $context->id, 'local_chuspasocial', 'listingphoto', $id, $fileoptions);
 
     redirect(
         new moodle_url('/local/chuspasocial/listing.php', ['id' => $id]),
@@ -104,7 +104,7 @@ if ($data = $form->get_data()) {
 
 if ($listing) {
     $draftitemid = file_get_submitted_draft_itemid('photos');
-    file_prepare_draft_area($draftitemid, $context->id, 'local_chuspasocial', 'photos', $id, $fileoptions);
+    file_prepare_draft_area($draftitemid, $context->id, 'local_chuspasocial', 'listingphoto', $id, $fileoptions);
 
     $form->set_data((object) [
         'title' => $listing->title,
